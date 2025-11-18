@@ -53,7 +53,7 @@ services:
     # Alpine = distribution Linux ultra-légère (~5MB vs ~100MB pour Debian)
     # Idéal pour conteneurs (démarrage rapide, moins de surface d'attaque)
     
-    container_name: cv_postgres_${STUDENT_ID:-student01}
+    container_name: cv_postgres_${STUDENT_ID:-student10}
     # 💡 Nom fixe du conteneur (facilite les logs et le debugging)
     # Sans cela, Docker génère un nom aléatoire (ex: cv_v3_postgres_1)
     
@@ -74,7 +74,7 @@ services:
       # Syntaxe : ${VARIABLE:-valeur_par_defaut}
       # Ordre de priorité : 1) .env, 2) valeur par défaut, 3) variable système
       
-      POSTGRES_DB: ${DB_NAME:-cats_dogs_db}_${STUDENT_ID:-student01}
+      POSTGRES_DB: ${DB_NAME:-cats_dogs_db}_${STUDENT_ID:-student10}
       # 💡 Nom de la base créée automatiquement au premier démarrage
       # Défaut : cats_dogs_db (si DB_NAME absent du .env)
       
@@ -164,7 +164,7 @@ services:
       # 📄 Chemin relatif au contexte (..) du Dockerfile à utiliser
       # Séparation propre : configs Docker dans docker/, code dans src/
     
-    container_name: cv_cats_dogs_app_${STUDENT_ID:-student01}
+    container_name: cv_cats_dogs_app_${STUDENT_ID:-student10}
     restart: unless-stopped
     
     env_file:
@@ -185,7 +185,7 @@ services:
       # Différent du port exposé à l'hôte (5433)
       # Communication inter-conteneurs = rapide (pas de NAT)
       
-      DB_NAME: ${DB_NAME:-cats_dogs_db}_${STUDENT_ID:-student01}
+      DB_NAME: ${DB_NAME:-cats_dogs_db}_${STUDENT_ID:-student10}
       DB_USER: ${DB_USER:-catsdogs}
       DB_PWD: ${DB_PWD}
       # 🔐 Même configuration que postgres (cohérence)
@@ -208,7 +208,7 @@ services:
       # Optionnel (valeur vide = notifications désactivées)
       # Format : https://discord.com/api/webhooks/{id}/{token}
 
-      STUDENT_ID: ${STUDENT_ID:-student01}
+      STUDENT_ID: ${STUDENT_ID:-student10}
     
     ports:
       - "${STUDENT_PORT_API:-8000}:8000"
@@ -289,7 +289,7 @@ services:
     # 📦 Image officielle Prometheus (maintenue par la CNCF)
     # :latest = dernière version stable (alternative : tag spécifique pour prod)
     
-    container_name: cv_prometheus_${STUDENT_ID:-student01}
+    container_name: cv_prometheus_${STUDENT_ID:-student10}
     restart: unless-stopped
     
     command:
@@ -311,7 +311,7 @@ services:
       # Exemple : curl -X POST http://localhost:9090/-/reload
     
     ports:
-      - "${STUDENT_PORT_PROMETHEUS:-9090}:9090"
+      - "${STUDENT_PORT_PROMETHEUS:-9100}:9090"
       # 🌐 Interface web Prometheus
       # Accessible : http://localhost:9090
       # Fonctionnalités :
@@ -367,7 +367,7 @@ services:
     image: grafana/grafana:latest
     # 📦 Image officielle Grafana Labs
     
-    container_name: cv_grafana_${STUDENT_ID:-student01}
+    container_name: cv_grafana_${STUDENT_ID:-student10}
     restart: unless-stopped
     
     environment:
@@ -398,7 +398,7 @@ services:
       DB_NAME: ${DB_NAME:-cats_dogs_db}
       DB_USER: ${DB_USER:-catsdogs}
       DB_PWD: ${DB_PWD}
-      STUDENT_ID: ${STUDENT_ID:-student01}
+      STUDENT_ID: ${STUDENT_ID:-student10}
     
     ports:
       - "${STUDENT_PORT_GRAFANA:-3000}:3000"
@@ -522,7 +522,7 @@ volumes:
 # ═══════════════════════════════════════════════════════════════════════════════
 networks:
   default:
-    name: cv_mlops_network_${STUDENT_ID:-student01}
+    name: cv_mlops_network_${STUDENT_ID:-student10}
     # 🏷️ Nom custom du réseau (remplace {projet}_default)
     # Avantages :
     #   - Lisibilité (docker network ls)
