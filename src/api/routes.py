@@ -215,151 +215,116 @@ async def inference_page(request: Request):
 # 🧠 API INFÉRENCE
 # ═══════════════════════════════════════════════════════════════════════════
 
+from ..monitoring.prometheus_metrics import (
+    cv_predictions_total,
+    cv_predictions_by_class_total,
+    cv_prediction_latency_seconds,
+    cv_feedback_negative_total,
+)
+
+
 @router.post("/api/predict", tags=["🧠 Inférence"])
 async def predict_api(
     file: UploadFile = File(...),
     rgpd_consent: bool = Form(False),
-    token: str = Depends(verify_token),  # 🔐 Authentification requise
-    db: Session = Depends(get_db)       # 🗄️ Injection session DB
+    token: str = Depends(verify_token),
+    db: Session = Depends(get_db)
 ):
-    """
-    Endpoint de prédiction avec tracking complet
-    
-    🔄 WORKFLOW
-    1. Validation fichier (type image)
-    2. Lecture et prétraitement image
-    3. Inférence CNN → prédiction + confiance
-    4. Sauvegarde en PostgreSQL (V2)
-    5. 🆕 Export métriques Prometheus (V3, optionnel)
-    6. 🆕 Alerte Discord si latence élevée (V3, optionnel)
-    
-    Args:
-        file: Image uploadée (formats : jpg, png, webp)
-        rgpd_consent: Consentement stockage données personnelles
-        token: Token Bearer (validé par verify_token)
-        db: Session SQLAlchemy
-    
-    Returns:
-        JSON avec prédiction, confiance, probabilités, temps inférence
-    
-    Raises:
-        HTTPException 503: Modèle non chargé
-        HTTPException 400: Format fichier invalide
-        HTTPException 500: Erreur inférence
-    """
-    # ─────────────────────────────────────────────────────────────────────────
-    # ✅ VALIDATIONS PRÉLIMINAIRES
-    # ─────────────────────────────────────────────────────────────────────────
     if not predictor.is_loaded():
         raise HTTPException(status_code=503, detail="Modèle non disponible")
-        # 503 Service Unavailable : temporaire, retry possible
-    
+
     if not file.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail="Format d'image invalide")
-        # Accepte : image/jpeg, image/png, image/webp, etc.
-    
-    # ─────────────────────────────────────────────────────────────────────────
-    # ⏱️ MESURE TEMPS D'INFÉRENCE (début)
-    # ─────────────────────────────────────────────────────────────────────────
+
+    # Début de la mesure temps (pour ta DB)
     start_time = time.perf_counter()
-    # perf_counter() : horloge haute précision (nanoseconde sur Linux)
-    # Alternative : time.time() (moins précis, impacté par ajustements NTP)
-    
+
     try:
-        # ─────────────────────────────────────────────────────────────────────
-        # 📸 LECTURE ET PRÉDICTION
-        # ─────────────────────────────────────────────────────────────────────
         image_data = await file.read()
-        # 📥 Lecture asynchrone du fichier uploadé (bytes)
-        
-        result = predictor.predict(image_data)
-        # 🧠 Inférence CNN (voir src/models/predictor.py)
-        # result = {
-        #     "prediction": "Cat" ou "Dog",
-        #     "confidence": 0.95,
-        #     "probabilities": {"cat": 0.95, "dog": 0.05}
-        # }
-        
-        # ─────────────────────────────────────────────────────────────────────
-        # ⏱️ CALCUL TEMPS D'INFÉRENCE (fin)
-        # ─────────────────────────────────────────────────────────────────────
+
+        # ⏱️ Mesure du temps d'inférence pour Prometheus
+        # (Prometheus aura cv_prediction_latency_seconds_*)
+        with cv_prediction_latency_seconds.time():
+            result = predictor.predict(image_data)
+
+        # Fin du temps (pour ton JSON / DB en ms)
         end_time = time.perf_counter()
         inference_time_ms = int((end_time - start_time) * 1000)
-        # Conversion secondes → millisecondes (plus lisible pour latence)
-        # Typage int : évite JSON avec .567823478 ms
-        
-        # ─────────────────────────────────────────────────────────────────────
-        # 📊 FORMATAGE PROBABILITÉS (pour DB)
-        # ─────────────────────────────────────────────────────────────────────
-        proba_cat = result['probabilities']['cat'] * 100  # 0.95 → 95.0
+
+        # ----- MÉTRIQUES PROMETHEUS -----
+
+        # 1) Incrémenter le nombre total de prédictions
+        cv_predictions_total.inc()
+
+        # 2) Incrémenter le compteur par classe (cat / dog)
+        label = result["prediction"].lower()  # "Cat" -> "cat"
+        if label not in ("cat", "dog"):
+            label = "other"  # au cas où
+
+        cv_predictions_by_class_total.labels(label=label).inc()
+
+        # ----- FIN MÉTRIQUES -----
+
+        proba_cat = result['probabilities']['cat'] * 100
         proba_dog = result['probabilities']['dog'] * 100
-        # Stockage en pourcentage (plus intuitif en base)
-        
-        # ─────────────────────────────────────────────────────────────────────
-        # 💾 SAUVEGARDE EN BASE DE DONNÉES (V2 - inchangé)
-        # ─────────────────────────────────────────────────────────────────────
+
         feedback_record = FeedbackService.save_prediction_feedback(
             db=db,
             inference_time_ms=inference_time_ms,
             success=True,
-            prediction_result=result["prediction"].lower(),  # 'cat' ou 'dog'
+            prediction_result=label,
             proba_cat=proba_cat,
             proba_dog=proba_dog,
             rgpd_consent=rgpd_consent,
-            filename=file.filename if rgpd_consent else None,  # Anonymisation
-            user_feedback=None,  # Sera mis à jour via /api/update-feedback
+            filename=file.filename if rgpd_consent else None,
+            user_feedback=None,
             user_comment=None
         )
-        
-        #update_db_status(True)
-        # 📝 Retourne objet ORM PredictionFeedback avec .id auto-généré
-        
-        # ─────────────────────────────────────────────────────────────────────
-        # 📤 RÉPONSE API (V2 - inchangé)
-        # ─────────────────────────────────────────────────────────────────────
+
         response_data = {
             "filename": file.filename,
-            "prediction": result["prediction"],  # "Cat" ou "Dog"
-            "confidence": f"{result['confidence']:.2%}",  # "95.34%"
+            "prediction": result["prediction"],
+            "confidence": f"{result['confidence']:.2%}",
             "probabilities": {
                 "cat": f"{result['probabilities']['cat']:.2%}",
                 "dog": f"{result['probabilities']['dog']:.2%}"
             },
             "inference_time_ms": inference_time_ms,
-            "feedback_id": feedback_record.id  # Pour update feedback ultérieur
+            "feedback_id": feedback_record.id
         }
-        
+
         return response_data
-        
+
     except Exception as e:
-        # ─────────────────────────────────────────────────────────────────────
-        # 🚨 GESTION ERREURS (logging même en cas d'échec)
-        # ─────────────────────────────────────────────────────────────────────
         end_time = time.perf_counter()
         inference_time_ms = int((end_time - start_time) * 1000)
-        
-        # 💾 Enregistrement de l'erreur en base (audit trail)
+
+        # 👉 en cas d'erreur, on compte aussi :
+        cv_predictions_total.inc()
+        cv_predictions_by_class_total.labels(label="error").inc()
+
         try:
             FeedbackService.save_prediction_feedback(
                 db=db,
                 inference_time_ms=inference_time_ms,
-                success=False,  # Marqueur échec
+                success=False,
                 prediction_result="error",
                 proba_cat=0.0,
                 proba_dog=0.0,
                 rgpd_consent=False,
                 filename=None,
                 user_feedback=None,
-                user_comment=str(e)  # Stockage message erreur
+                user_comment=str(e)
             )
         except:
-            pass  # Double échec = on abandonne (évite cascade)
-        
+            pass
+
         raise HTTPException(status_code=500, detail=f"Erreur de prédiction: {str(e)}")
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 📊 API FEEDBACK UTILISATEUR
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 @router.post("/api/update-feedback", tags=["📊 Monitoring"])
 async def update_feedback(
@@ -430,6 +395,10 @@ async def update_feedback(
                     status_code=400,
                     detail="user_feedback doit être 0 ou 1"
                 )
+            # 🟣 Si feedback négatif (0), on incrémente la métrique Prometheus
+            if user_feedback == 0:
+                cv_feedback_negative_total.labels(label=record.prediction_result).inc()
+
             record.user_feedback = user_feedback
         
         if user_comment:
@@ -446,6 +415,9 @@ async def update_feedback(
             status_code=500,
             detail=f"Erreur lors de la mise à jour: {str(e)}"
         )
+    
+
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 📊 API STATISTIQUES & MONITORING

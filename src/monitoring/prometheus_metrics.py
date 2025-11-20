@@ -143,3 +143,33 @@ def update_db_status(is_connected: bool):
 # - FastAPI Instrumentator: https://github.com/trallnag/prometheus-fastapi-instrumentator
 #
 # ═══════════════════════════════════════════════════════════════════════════
+
+
+# CUSTUM PROMETHEUS METRICS
+
+# 1) Nombre total de prédictions (toutes classes confondues)
+cv_predictions_total = Counter(
+    "cv_predictions_total",
+    "Nombre total de prédictions effectuées"
+)
+
+# 2) Nombre de prédictions par classe (chat / dog / error)
+cv_predictions_by_class_total = Counter(
+    "cv_predictions_by_class_total",
+    "Nombre de prédictions par classe",
+    ["label"]  # label = "cat", "dog", "error"
+)
+
+# 3) Temps d'inférence (en secondes) pour la prédiction
+cv_prediction_latency_seconds = Histogram(
+    "cv_prediction_latency_seconds",
+    "Temps d'inférence du modèle en secondes",
+    buckets=[0.05, 0.1, 0.2, 0.5, 1, 2, 5]
+)
+
+# Feedback négatif par classe (cat/dog)
+cv_feedback_negative_total = Counter(
+    "cv_feedback_negative_total",
+    "Nombre de feedbacks négatifs (0 = insatisfait) par classe prédite",
+    ["label"]   # cat / dog
+)
