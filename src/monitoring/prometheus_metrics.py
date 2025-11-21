@@ -173,3 +173,6 @@ cv_feedback_negative_total = Counter(
     "Nombre de feedbacks négatifs (0 = insatisfait) par classe prédite",
     ["label"]   # cat / dog
 )
+
+
+
