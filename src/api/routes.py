@@ -222,7 +222,7 @@ from ..monitoring.prometheus_metrics import (
     cv_feedback_negative_total,
 )
 
-from ..monitoring.discord_notifier import alert_new_prediction
+from ..monitoring.discord_notifier import alert_new_prediction, alert_model_degradation2
 
 @router.post("/api/predict", tags=["🧠 Inférence"])
 async def predict_api(
@@ -294,6 +294,7 @@ async def predict_api(
             "feedback_id": feedback_record.id
         }
         alert_new_prediction()
+        
         return response_data
 
     except Exception as e:
@@ -399,6 +400,8 @@ async def update_feedback(
             # 🟣 Si feedback négatif (0), on incrémente la métrique Prometheus
             if user_feedback == 0:
                 cv_feedback_negative_total.labels(label=record.prediction_result).inc()
+                taux_negatif = cv_feedback_negative_total / cv_predictions_total * 100
+                alert_model_degradation2(taux_negatif)
 
 
             record.user_feedback = user_feedback
