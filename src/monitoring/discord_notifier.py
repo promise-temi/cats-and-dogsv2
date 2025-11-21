@@ -242,13 +242,13 @@ def alert_model_degradation(accuracy: float, threshold: float = 0.85):
             }
         )
 
-        def alert_model_degradation2(taux):
-            if taux >= 30:
-                notifier.send_alert(
-                title="Model Performance Degradation...",
-                message=f"le taux de feedback négatifs est anormalement élevé : {taux}% )",
-                level="warning",  # Warning car dégradation progressive (pas incident immédiat)
-            )
+def alert_model_degradation2(taux):
+    if taux >= 30:
+        notifier.send_alert(
+        title="Model Performance Degradation...",
+        message=f"le taux de feedback négatifs est anormalement élevé : {taux}% )",
+        level="warning",  # Warning car dégradation progressive (pas incident immédiat)
+    )
 
 
 def alert_high_latency(latency_ms: float, threshold: float = 2000):
