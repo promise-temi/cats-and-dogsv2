@@ -398,3 +398,14 @@ def alert_deployment_success(version: str):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+def alert_new_prediction():
+    """
+    alerte nouvelle prediction
+    """
+    
+    notifier.send_alert(
+        title="New project",
+        message=f"Le modèle a été utilisé pour une prediction",
+        level="info",  # Warning car dégradation progressive (pas incident immédiat)
+        
+    )
