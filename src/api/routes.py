@@ -400,9 +400,9 @@ async def update_feedback(
             # 🟣 Si feedback négatif (0), on incrémente la métrique Prometheus
             if user_feedback == 0:
                 cv_feedback_negative_total.labels(label=record.prediction_result).inc()
-                
-                taux_negatif = cv_feedback_negative_total / cv_predictions_total * 100
-                alert_model_degradation2(taux_negatif)
+
+                # taux_negatif = cv_feedback_negative_total / cv_predictions_total * 100
+                # alert_model_degradation2(taux_negatif)
 
 
             record.user_feedback = user_feedback
