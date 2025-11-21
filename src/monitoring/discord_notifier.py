@@ -65,7 +65,7 @@ class DiscordNotifier:
     """
     
     def __init__(self):
-        self.webhook_url = os.getenv('DISCORD_WEBHOOK_URL')
+        self.webhook_url = 'https://discord.com/api/webhooks/1441060131721969695/_3j0D9zOsb7iKTSFb2a7GpWC7D55nD7KQIF6c1flOYUaem3FRQ8KbDc5mhfEticyXpih'
         # 🔗 Récupère URL depuis variables d'environnement
         # Format attendu : https://discord.com/api/webhooks/{id}/{token}
         
